@@ -9,9 +9,9 @@ console.log('🔧 FIXING RAILWAY VARIABLES - ' + new Date().toISOString());
 
 // ==================== ENVIRONMENT VARIABLES ====================
 const ENV = {
-    // Database - Railway PostgreSQL
-    DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/crypto_trading',
-    NODE_ENV: process.env.NODE_ENV || 'development',
+    // Database - Railway PostgreSQL с правильными переменными
+    DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:pvVDFCUgBFcCTtkuCIgyeqcFlbUvXNtt@postgres.railway.internal:5432/railway',
+    NODE_ENV: process.env.NODE_ENV || 'production',
     
     // Server - Railway defaults
     PORT: process.env.PORT || 8082,
@@ -28,36 +28,47 @@ const ENV = {
     API_RATE_LIMIT: parseInt(process.env.API_RATE_LIMIT) || 100,
     API_TIMEOUT: parseInt(process.env.API_TIMEOUT) || 30000,
     
-    // Railway Specific
+    // Railway Specific - правильные переменные
     RAILWAY_PUBLIC_DOMAIN: process.env.RAILWAY_PUBLIC_DOMAIN,
     RAILWAY_PRIVATE_DOMAIN: process.env.RAILWAY_PRIVATE_DOMAIN,
     RAILWAY_PROJECT_NAME: process.env.RAILWAY_PROJECT_NAME,
-    RAILWAY_SERVICE_NAME: process.env.RAILWAY_SERVICE_NAME
+    RAILWAY_SERVICE_NAME: process.env.RAILWAY_SERVICE_NAME,
+    
+    // PostgreSQL Railway переменные
+    POSTGRES_USER: process.env.POSTGRES_USER || 'postgres',
+    POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD || 'pvVDFCUgBFcCTtkuCIgyeqcFlbUvXNtt',
+    POSTGRES_DB: process.env.POSTGRES_DB || 'railway',
+    PGHOST: process.env.PGHOST || 'postgres.railway.internal',
+    PGPORT: process.env.PGPORT || '5432'
 };
 
 // Принудительная проверка Railway переменных
-if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+if (process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RAILWAY_PRIVATE_DOMAIN) {
     console.log('🚂 Railway Environment Detected!');
     ENV.NODE_ENV = 'production';
     ENV.PORT = process.env.PORT || 8082;
     
-    // ПРИНУДИТЕЛЬНО используем Railway DATABASE_URL
+    // ПРИНУДИТЕЛЬНО используем Railway DATABASE_URL или строим из переменных
     if (process.env.DATABASE_URL) {
         ENV.DATABASE_URL = process.env.DATABASE_URL;
         console.log('✅ Railway PostgreSQL URL detected');
         console.log(`🔗 DATABASE_URL: ${process.env.DATABASE_URL.substring(0, 50)}...`);
-        
-        // Проверяем, что это правильный Railway URL
-        if (process.env.DATABASE_URL.includes('railway.internal')) {
-            console.log('✅ Railway internal PostgreSQL URL confirmed');
-        } else if (process.env.DATABASE_URL.includes('railway')) {
-            console.log('✅ Railway PostgreSQL URL confirmed');
-        } else {
-            console.log('⚠️  Warning: DATABASE_URL may not be Railway PostgreSQL');
-        }
+    } else if (process.env.POSTGRES_USER && process.env.POSTGRES_PASSWORD && process.env.RAILWAY_PRIVATE_DOMAIN) {
+        // Строим DATABASE_URL из Railway переменных
+        ENV.DATABASE_URL = `postgresql://${process.env.POSTGRES_USER}:${process.env.POSTGRES_PASSWORD}@${process.env.RAILWAY_PRIVATE_DOMAIN}:5432/${process.env.POSTGRES_DB || 'railway'}`;
+        console.log('✅ Railway PostgreSQL URL built from variables');
+        console.log(`🔗 DATABASE_URL: ${ENV.DATABASE_URL.substring(0, 50)}...`);
     } else {
         console.log('❌ ERROR: DATABASE_URL not found in Railway');
-        console.log('🔧 Please add DATABASE_URL = ${{ Postgres.DATABASE_URL }} in Railway Variables');
+        console.log('🔧 Using fallback Railway PostgreSQL URL');
+        ENV.DATABASE_URL = 'postgresql://postgres:pvVDFCUgBFcCTtkuCIgyeqcFlbUvXNtt@postgres.railway.internal:5432/railway';
+    }
+    
+    // Проверяем, что это правильный Railway URL
+    if (ENV.DATABASE_URL.includes('railway.internal') || ENV.DATABASE_URL.includes('railway')) {
+        console.log('✅ Railway PostgreSQL URL confirmed');
+    } else {
+        console.log('⚠️  Warning: DATABASE_URL may not be Railway PostgreSQL');
     }
 }
 
@@ -66,6 +77,9 @@ console.log(`  - NODE_ENV: ${ENV.NODE_ENV}`);
 console.log(`  - PORT: ${ENV.PORT}`);
 console.log(`  - DATABASE_URL: ${ENV.DATABASE_URL ? 'SET' : 'NOT SET'}`);
 console.log(`  - RAILWAY_DOMAIN: ${ENV.RAILWAY_PUBLIC_DOMAIN || 'NOT SET'}`);
+console.log(`  - POSTGRES_USER: ${ENV.POSTGRES_USER}`);
+console.log(`  - POSTGRES_DB: ${ENV.POSTGRES_DB}`);
+console.log(`  - PGHOST: ${ENV.PGHOST}`);
 
 // ==================== DATABASE CONFIGURATION ====================
 const pool = new Pool({
