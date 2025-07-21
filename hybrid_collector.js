@@ -136,30 +136,32 @@ class HybridCollector {
         // 1. Прямо из переменной
         let url = process.env.DATABASE_URL;
         if (url && !url.includes('${{') && url !== '') {
+            console.log('[DB] Использую DATABASE_URL:', url);
             return url;
         }
-        // 2. Новые шаблоны Railway
+        // 2. PUBLIC_URL
         if (process.env.DATABASE_PUBLIC_URL && !process.env.DATABASE_PUBLIC_URL.includes('${{')) {
+            console.log('[DB] Использую DATABASE_PUBLIC_URL:', process.env.DATABASE_PUBLIC_URL);
             return process.env.DATABASE_PUBLIC_URL;
         }
         // 3. Явно собираем из приватных переменных Railway
         const pgUser = process.env.PGUSER || process.env.POSTGRES_USER || 'postgres';
         const pgPassword = process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD || '';
         const pgDatabase = process.env.PGDATABASE || process.env.POSTGRES_DB || 'railway';
-        // Приватный домен (внутри Railway)
         const privateHost = process.env.RAILWAY_PRIVATE_DOMAIN || process.env.PGHOST || 'postgres-production-5ded.up.railway.app';
-        // Публичный proxy (для внешних подключений)
         const proxyHost = process.env.RAILWAY_TCP_PROXY_DOMAIN || 'trolley.proxy.rlwy.net';
         const proxyPort = process.env.RAILWAY_TCP_PROXY_PORT || '30676';
         // Если есть приватный домен
         if (privateHost) {
-            console.log('[DB] Использую приватный Railway домен:', privateHost);
-            return `postgresql://${pgUser}:${pgPassword}@${privateHost}:5432/${pgDatabase}`;
+            const privateUrl = `postgresql://${pgUser}:${pgPassword}@${privateHost}:5432/${pgDatabase}`;
+            console.log('[DB] Использую приватный Railway домен:', privateUrl);
+            return privateUrl;
         }
         // Если есть публичный proxy
         if (proxyHost && proxyPort) {
-            console.log('[DB] Использую публичный Railway proxy:', proxyHost, proxyPort);
-            return `postgresql://${pgUser}:${pgPassword}@${proxyHost}:${proxyPort}/${pgDatabase}`;
+            const proxyUrl = `postgresql://${pgUser}:${pgPassword}@${proxyHost}:${proxyPort}/${pgDatabase}`;
+            console.log('[DB] Использую публичный Railway proxy:', proxyUrl);
+            return proxyUrl;
         }
         // 4. Альтернативные переменные
         if (process.env.POSTGRES_URL) return process.env.POSTGRES_URL;
