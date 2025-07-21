@@ -9,11 +9,11 @@ console.log('🔧 FIXING RAILWAY VARIABLES - ' + new Date().toISOString());
 
 // ==================== ENVIRONMENT VARIABLES ====================
 const ENV = {
-    // Database
+    // Database - Railway PostgreSQL
     DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/crypto_trading',
     NODE_ENV: process.env.NODE_ENV || 'development',
     
-    // Server
+    // Server - Railway defaults
     PORT: process.env.PORT || 8082,
     IP: process.env.IP || '0.0.0.0',
     
@@ -35,6 +35,20 @@ const ENV = {
     RAILWAY_SERVICE_NAME: process.env.RAILWAY_SERVICE_NAME
 };
 
+// Принудительная проверка Railway переменных
+if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    console.log('🚂 Railway Environment Detected!');
+    ENV.NODE_ENV = 'production';
+    ENV.PORT = process.env.PORT || 8082;
+    
+    // Проверяем DATABASE_URL для Railway
+    if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('railway')) {
+        console.log('✅ Railway PostgreSQL detected');
+    } else {
+        console.log('⚠️  Warning: DATABASE_URL may not be Railway PostgreSQL');
+    }
+}
+
 console.log('📋 Environment Configuration:');
 console.log(`  - NODE_ENV: ${ENV.NODE_ENV}`);
 console.log(`  - PORT: ${ENV.PORT}`);
@@ -44,7 +58,11 @@ console.log(`  - RAILWAY_DOMAIN: ${ENV.RAILWAY_PUBLIC_DOMAIN || 'NOT SET'}`);
 // ==================== DATABASE CONFIGURATION ====================
 const pool = new Pool({
     connectionString: ENV.DATABASE_URL,
-    ssl: ENV.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    ssl: ENV.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    // Railway PostgreSQL specific settings
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
 });
 
 // Список торговых пар для Binance (все поддерживаемые)
@@ -94,9 +112,17 @@ class HybridCollector {
             console.log('🔍 Проверка подключения к базе данных...');
             console.log(`  - DATABASE_URL: ${ENV.DATABASE_URL ? 'SET' : 'NOT SET'}`);
             console.log(`  - NODE_ENV: ${ENV.NODE_ENV}`);
+            console.log(`  - RAILWAY_DOMAIN: ${ENV.RAILWAY_PUBLIC_DOMAIN || 'NOT SET'}`);
             
             if (!ENV.DATABASE_URL) {
                 throw new Error('DATABASE_URL не установлен');
+            }
+            
+            // Проверяем, что это Railway PostgreSQL
+            if (ENV.DATABASE_URL.includes('railway')) {
+                console.log('🚂 Подключение к Railway PostgreSQL...');
+            } else {
+                console.log('⚠️  Warning: DATABASE_URL не содержит "railway"');
             }
             
             await this.pool.query('SELECT 1');
@@ -111,9 +137,14 @@ class HybridCollector {
             `);
             console.log(`📊 Найдено таблиц: ${tablesResult.rows.length}`);
             
+            if (tablesResult.rows.length === 0) {
+                console.log('⚠️  Таблицы не найдены. Возможно, база данных пуста.');
+            }
+            
         } catch (error) {
             console.error('❌ Ошибка подключения к БД:', error.message);
             console.error('🔧 Убедитесь, что DATABASE_URL установлен в Railway Variables');
+            console.error('🔧 Проверьте, что PostgreSQL сервис добавлен в Railway');
             throw error;
         }
     }
