@@ -46,8 +46,18 @@ if (process.env.RAILWAY_PUBLIC_DOMAIN) {
         ENV.DATABASE_URL = process.env.DATABASE_URL;
         console.log('✅ Railway PostgreSQL URL detected');
         console.log(`🔗 DATABASE_URL: ${process.env.DATABASE_URL.substring(0, 50)}...`);
+        
+        // Проверяем, что это правильный Railway URL
+        if (process.env.DATABASE_URL.includes('railway.internal')) {
+            console.log('✅ Railway internal PostgreSQL URL confirmed');
+        } else if (process.env.DATABASE_URL.includes('railway')) {
+            console.log('✅ Railway PostgreSQL URL confirmed');
+        } else {
+            console.log('⚠️  Warning: DATABASE_URL may not be Railway PostgreSQL');
+        }
     } else {
-        console.log('⚠️  Warning: DATABASE_URL not found in Railway');
+        console.log('❌ ERROR: DATABASE_URL not found in Railway');
+        console.log('🔧 Please add DATABASE_URL = ${{ Postgres.DATABASE_URL }} in Railway Variables');
     }
 }
 
