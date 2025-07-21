@@ -142,21 +142,23 @@ class HybridCollector {
         if (process.env.DATABASE_PUBLIC_URL && !process.env.DATABASE_PUBLIC_URL.includes('${{')) {
             return process.env.DATABASE_PUBLIC_URL;
         }
-        // 3. Явно собираем из новых переменных Railway
+        // 3. Явно собираем из приватных переменных Railway
         const pgUser = process.env.PGUSER || process.env.POSTGRES_USER || 'postgres';
         const pgPassword = process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD || '';
         const pgDatabase = process.env.PGDATABASE || process.env.POSTGRES_DB || 'railway';
         // Приватный домен (внутри Railway)
-        const privateHost = process.env.RAILWAY_PRIVATE_DOMAIN || process.env.PGHOST;
+        const privateHost = process.env.RAILWAY_PRIVATE_DOMAIN || process.env.PGHOST || 'postgres-production-5ded.up.railway.app';
         // Публичный proxy (для внешних подключений)
-        const proxyHost = process.env.RAILWAY_TCP_PROXY_DOMAIN;
-        const proxyPort = process.env.RAILWAY_TCP_PROXY_PORT;
+        const proxyHost = process.env.RAILWAY_TCP_PROXY_DOMAIN || 'trolley.proxy.rlwy.net';
+        const proxyPort = process.env.RAILWAY_TCP_PROXY_PORT || '30676';
         // Если есть приватный домен
         if (privateHost) {
+            console.log('[DB] Использую приватный Railway домен:', privateHost);
             return `postgresql://${pgUser}:${pgPassword}@${privateHost}:5432/${pgDatabase}`;
         }
         // Если есть публичный proxy
         if (proxyHost && proxyPort) {
+            console.log('[DB] Использую публичный Railway proxy:', proxyHost, proxyPort);
             return `postgresql://${pgUser}:${pgPassword}@${proxyHost}:${proxyPort}/${pgDatabase}`;
         }
         // 4. Альтернативные переменные
