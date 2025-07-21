@@ -4,6 +4,7 @@ const express = require('express');
 const axios = require('axios');
 
 console.log('🚀 Starting Hybrid Data Collector (WebSocket + REST API)...');
+console.log('🔄 Railway deployment update - ' + new Date().toISOString());
 
 // ==================== ENVIRONMENT VARIABLES ====================
 const ENV = {
