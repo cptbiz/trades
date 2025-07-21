@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node hybrid_collector.js",
     "dev": "nodemon hybrid_collector.js",
+    "init-db": "node init_database.js",
     "test": "node test_db.js"
   },
   "keywords": [

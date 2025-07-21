@@ -41,11 +41,13 @@ if (process.env.RAILWAY_PUBLIC_DOMAIN) {
     ENV.NODE_ENV = 'production';
     ENV.PORT = process.env.PORT || 8082;
     
-    // Проверяем DATABASE_URL для Railway
-    if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('railway')) {
-        console.log('✅ Railway PostgreSQL detected');
+    // ПРИНУДИТЕЛЬНО используем Railway DATABASE_URL
+    if (process.env.DATABASE_URL) {
+        ENV.DATABASE_URL = process.env.DATABASE_URL;
+        console.log('✅ Railway PostgreSQL URL detected');
+        console.log(`🔗 DATABASE_URL: ${process.env.DATABASE_URL.substring(0, 50)}...`);
     } else {
-        console.log('⚠️  Warning: DATABASE_URL may not be Railway PostgreSQL');
+        console.log('⚠️  Warning: DATABASE_URL not found in Railway');
     }
 }
 

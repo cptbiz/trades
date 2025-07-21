@@ -2,77 +2,75 @@ const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-// Конфигурация базы данных через TCP прокси
-const dbConfig = {
-    host: 'turntable.proxy.rlwy.net',
-    port: 37516,
-    database: 'railway',
-    user: 'postgres',
-    password: 'pvVDFCUgBFcCTtkuCIgyeqcFlbUvXNtt',
-    ssl: {
-        rejectUnauthorized: false
-    }
-};
-
-// Создание пула соединений
-const pool = new Pool(dbConfig);
+// Конфигурация подключения к Railway PostgreSQL
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+});
 
 async function initDatabase() {
     try {
-        console.log('🔌 Подключение к PostgreSQL через TCP прокси...');
+        console.log('🗄️ Инициализация базы данных Railway...');
+        console.log(`🔗 DATABASE_URL: ${process.env.DATABASE_URL ? 'SET' : 'NOT SET'}`);
         
-        // Проверка подключения
-        const client = await pool.connect();
-        console.log('✅ Подключение к базе данных установлено');
+        if (!process.env.DATABASE_URL) {
+            throw new Error('DATABASE_URL не установлен');
+        }
         
-        // Чтение схемы из файла
+        // Проверяем подключение
+        await pool.query('SELECT 1');
+        console.log('✅ Подключение к Railway PostgreSQL установлено');
+        
+        // Читаем SQL схему
         const schemaPath = path.join(__dirname, 'database_schema.sql');
-        const schema = fs.readFileSync(schemaPath, 'utf8');
+        const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
         
-        console.log('📋 Создание таблиц...');
+        // Выполняем SQL схему
+        console.log('📝 Создание таблиц...');
+        await pool.query(schemaSQL);
         
-        // Выполнение SQL команд
-        await client.query(schema);
-        
-        console.log('✅ Таблицы созданы успешно');
-        
-        // Проверка созданных таблиц
-        const tablesResult = await client.query(`
+        // Проверяем созданные таблицы
+        const tablesResult = await pool.query(`
             SELECT table_name 
             FROM information_schema.tables 
-            WHERE table_schema = 'public'
+            WHERE table_schema = 'public' 
+            AND table_name IN ('trading_pairs', 'tickers', 'candles', 'websocket_data', 'intervals', 'signals')
             ORDER BY table_name
         `);
         
-        console.log('📊 Созданные таблицы:');
+        console.log(`📊 Создано таблиц: ${tablesResult.rows.length}`);
         tablesResult.rows.forEach(row => {
             console.log(`  - ${row.table_name}`);
         });
         
-        // Проверка индексов
-        const indexesResult = await client.query(`
-            SELECT indexname, tablename 
-            FROM pg_indexes 
-            WHERE schemaname = 'public'
-            ORDER BY tablename, indexname
-        `);
+        // Проверяем данные
+        const pairsCount = await pool.query('SELECT COUNT(*) as count FROM trading_pairs');
+        const intervalsCount = await pool.query('SELECT COUNT(*) as count FROM intervals');
         
-        console.log('🔍 Созданные индексы:');
-        indexesResult.rows.forEach(row => {
-            console.log(`  - ${row.indexname} (${row.tablename})`);
-        });
+        console.log(`📈 Торговых пар: ${pairsCount.rows[0].count}`);
+        console.log(`⏰ Интервалов: ${intervalsCount.rows[0].count}`);
         
-        client.release();
-        
-        console.log('🎉 Инициализация базы данных завершена успешно!');
+        console.log('✅ База данных успешно инициализирована!');
         
     } catch (error) {
-        console.error('❌ Ошибка инициализации базы данных:', error.message);
-        console.error('Детали:', error);
+        console.error('❌ Ошибка инициализации БД:', error.message);
+        throw error;
     } finally {
         await pool.end();
     }
 }
 
 // Запуск инициализации
-initDatabase(); 
+if (require.main === module) {
+    initDatabase()
+        .then(() => {
+            console.log('🎉 Инициализация завершена успешно!');
+            process.exit(0);
+        })
+        .catch((error) => {
+            console.error('💥 Ошибка инициализации:', error);
+            process.exit(1);
+        });
+}
+
+module.exports = { initDatabase }; 
