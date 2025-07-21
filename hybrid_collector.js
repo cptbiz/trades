@@ -8,7 +8,7 @@ console.log('🚀 Starting Hybrid Data Collector (WebSocket + REST API)...');
 // Конфигурация базы данных
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: false
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
 // Список торговых пар для Binance (все поддерживаемые)
@@ -645,7 +645,7 @@ class HybridCollector {
     }
 
     // Запуск коллектора
-    start() {
+    async start() {
         if (this.isRunning) {
             console.log('⚠️ Коллектор уже запущен');
             return;
@@ -653,6 +653,9 @@ class HybridCollector {
 
         this.isRunning = true;
         console.log('🚀 Запуск полностью WebSocket коллектора...');
+        
+        // Инициализация базы данных
+        await this.initDatabase();
         
         // Запускаем все WebSocket соединения
         this.initializeBinanceWS();
@@ -730,8 +733,8 @@ app.get('/api/tickers/:exchange?', (req, res) => {
     }
 });
 
-app.post('/api/start', (req, res) => {
-    collector.start();
+app.post('/api/start', async (req, res) => {
+    await collector.start();
     res.json({ success: true, message: 'Гибридный коллектор запущен' });
 });
 
