@@ -9,7 +9,8 @@
     "init-db": "node init_database.js",
     "init-railway": "node init_railway_db.js",
     "test-db": "node test_railway_db.js",
-    "test": "node test_db.js"
+    "test": "node test_db.js",
+    "restart": "node force_restart.js"
   },
   "keywords": [
     "cryptocurrency",
