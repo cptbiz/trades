@@ -418,10 +418,9 @@ class HybridCollector {
     // Сохранение WebSocket данных
     async saveWebSocketData(exchangeId, symbol, dataType, rawData, processedData = null) {
         // ВРЕМЕННО ОТКЛЮЧЕНО - исправляем структуру таблицы
-        console.log(`📝 WebSocket данные (${dataType}): ${symbol} - временно не сохраняются`);
-        return;
+        // console.log(`📝 WebSocket данные (${dataType}): ${symbol} - временно не сохраняются`);
+        // return;
         
-        /*
         try {
             // Проверяем структуру таблицы websocket_data
             const tableStructure = await this.pool.query(`
@@ -443,21 +442,21 @@ class HybridCollector {
                     INSERT INTO websocket_data (exchange_id, symbol, data_type, raw_data, processed_data, timestamp)
                     VALUES ($1, $2, $3, $4, $5, $6)
                 `;
-                params = [exchangeId, symbol, dataType, JSON.stringify(rawData), processedData ? JSON.stringify(processedData) : null, Date.now()];
+                params = [exchangeId, symbol, dataType, JSON.stringify(rawData), processedData ? JSON.stringify(processedData) : null, new Date()];
             } else if (hasPairSymbolColumn) {
                 // Используем колонку pair_symbol
                 query = `
                     INSERT INTO websocket_data (exchange_id, pair_symbol, data_type, raw_data, processed_data, timestamp)
                     VALUES ($1, $2, $3, $4, $5, $6)
                 `;
-                params = [exchangeId, symbol, dataType, JSON.stringify(rawData), processedData ? JSON.stringify(processedData) : null, Date.now()];
+                params = [exchangeId, symbol, dataType, JSON.stringify(rawData), processedData ? JSON.stringify(processedData) : null, new Date()];
             } else {
                 // Fallback - используем только exchange_id и data_type
                 query = `
                     INSERT INTO websocket_data (exchange_id, data_type, raw_data, processed_data, timestamp)
                     VALUES ($1, $2, $3, $4, $5)
                 `;
-                params = [exchangeId, dataType, JSON.stringify(rawData), processedData ? JSON.stringify(processedData) : null, Date.now()];
+                params = [exchangeId, dataType, JSON.stringify(rawData), processedData ? JSON.stringify(processedData) : null, new Date()];
             }
             
             await this.pool.query(query, params);
@@ -479,7 +478,7 @@ class HybridCollector {
                     `;
                     await this.pool.query(retryQuery, [
                         exchangeId, symbol, dataType, JSON.stringify(rawData), 
-                        processedData ? JSON.stringify(processedData) : null, Date.now()
+                        processedData ? JSON.stringify(processedData) : null, new Date()
                     ]);
                     console.log('✅ Данные сохранены после исправления');
                 } catch (fixError) {
@@ -489,7 +488,6 @@ class HybridCollector {
                 console.error('❌ Ошибка сохранения WebSocket данных:', error.message);
             }
         }
-        */
     }
 
     // Получение ID интервала
