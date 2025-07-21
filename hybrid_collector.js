@@ -136,42 +136,70 @@ class HybridCollector {
     async initDatabase() {
         try {
             console.log('🔍 Проверка подключения к базе данных...');
-            console.log(`  - DATABASE_URL: ${ENV.DATABASE_URL ? 'SET' : 'NOT SET'}`);
-            console.log(`  - NODE_ENV: ${ENV.NODE_ENV}`);
-            console.log(`  - RAILWAY_DOMAIN: ${ENV.RAILWAY_PUBLIC_DOMAIN || 'NOT SET'}`);
             
-            if (!ENV.DATABASE_URL) {
-                throw new Error('DATABASE_URL не установлен');
-            }
+            // Проверяем переменные окружения
+            console.log('  - DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
+            console.log('  - NODE_ENV:', process.env.NODE_ENV);
+            console.log('  - RAILWAY_DOMAIN:', process.env.RAILWAY_DOMAIN);
             
-            // Проверяем, что это Railway PostgreSQL
-            if (ENV.DATABASE_URL.includes('railway')) {
-                console.log('🚂 Подключение к Railway PostgreSQL...');
-            } else {
-                console.log('⚠️  Warning: DATABASE_URL не содержит "railway"');
-            }
+            // Ждем немного перед подключением
+            console.log('⏳ Ожидание готовности PostgreSQL...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
             
-            await this.pool.query('SELECT 1');
-            console.log('✅ Подключение к базе данных установлено');
+            console.log('🚂 Подключение к Railway PostgreSQL...');
             
-            // Проверяем таблицы
-            const tablesResult = await this.pool.query(`
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name IN ('trading_pairs', 'tickers', 'candles', 'websocket_data')
-            `);
-            console.log(`📊 Найдено таблиц: ${tablesResult.rows.length}`);
+            // Создаем пул с повторными попытками
+            this.pool = new Pool({
+                connectionString: process.env.DATABASE_URL,
+                ssl: {
+                    rejectUnauthorized: false
+                },
+                connectionTimeoutMillis: 30000,
+                idleTimeoutMillis: 30000,
+                max: 20,
+                retryDelay: 1000,
+                maxRetries: 5
+            });
             
-            if (tablesResult.rows.length === 0) {
-                console.log('⚠️  Таблицы не найдены. Возможно, база данных пуста.');
-            }
+            // Тестируем подключение
+            const client = await this.pool.connect();
+            console.log('✅ Подключение к базе данных успешно');
+            client.release();
+            
+            // Инициализируем базу данных
+            await this.initializeDatabase();
             
         } catch (error) {
             console.error('❌ Ошибка подключения к БД:', error.message);
-            console.error('🔧 Убедитесь, что DATABASE_URL установлен в Railway Variables');
-            console.error('🔧 Проверьте, что PostgreSQL сервис добавлен в Railway');
-            throw error;
+            console.log('🔧 Убедитесь, что DATABASE_URL установлен в Railway Variables');
+            console.log('🔧 Проверьте, что PostgreSQL сервис добавлен в Railway');
+            
+            // Повторная попытка через 10 секунд
+            console.log('🔄 Повторная попытка через 10 секунд...');
+            await new Promise(resolve => setTimeout(resolve, 10000));
+            
+            try {
+                console.log('🚂 Повторное подключение к Railway PostgreSQL...');
+                this.pool = new Pool({
+                    connectionString: process.env.DATABASE_URL,
+                    ssl: {
+                        rejectUnauthorized: false
+                    },
+                    connectionTimeoutMillis: 30000,
+                    idleTimeoutMillis: 30000,
+                    max: 20
+                });
+                
+                const client = await this.pool.connect();
+                console.log('✅ Повторное подключение успешно');
+                client.release();
+                
+                await this.initializeDatabase();
+                
+            } catch (retryError) {
+                console.error('❌ Повторная попытка не удалась:', retryError.message);
+                throw new Error('Не удалось подключиться к базе данных после повторных попыток');
+            }
         }
     }
 
