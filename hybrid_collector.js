@@ -132,70 +132,98 @@ class HybridCollector {
         this.pool = pool;
     }
 
-    // Инициализация базы данных
+    getDatabaseUrl() {
+        // 1. Прямо из переменной
+        let url = process.env.DATABASE_URL;
+        if (url && !url.includes('${{') && url !== '') {
+            return url;
+        }
+        // 2. Новые шаблоны Railway
+        if (process.env.DATABASE_PUBLIC_URL && !process.env.DATABASE_PUBLIC_URL.includes('${{')) {
+            return process.env.DATABASE_PUBLIC_URL;
+        }
+        // 3. Явно собираем из новых переменных Railway
+        const pgUser = process.env.PGUSER || process.env.POSTGRES_USER || 'postgres';
+        const pgPassword = process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD || '';
+        const pgDatabase = process.env.PGDATABASE || process.env.POSTGRES_DB || 'railway';
+        // Приватный домен (внутри Railway)
+        const privateHost = process.env.RAILWAY_PRIVATE_DOMAIN || process.env.PGHOST;
+        // Публичный proxy (для внешних подключений)
+        const proxyHost = process.env.RAILWAY_TCP_PROXY_DOMAIN;
+        const proxyPort = process.env.RAILWAY_TCP_PROXY_PORT;
+        // Если есть приватный домен
+        if (privateHost) {
+            return `postgresql://${pgUser}:${pgPassword}@${privateHost}:5432/${pgDatabase}`;
+        }
+        // Если есть публичный proxy
+        if (proxyHost && proxyPort) {
+            return `postgresql://${pgUser}:${pgPassword}@${proxyHost}:${proxyPort}/${pgDatabase}`;
+        }
+        // 4. Альтернативные переменные
+        if (process.env.POSTGRES_URL) return process.env.POSTGRES_URL;
+        if (process.env.POSTGRES_PRISMA_URL) return process.env.POSTGRES_PRISMA_URL;
+        if (process.env.PG_URL) return process.env.PG_URL;
+        // 5. Не найдено — выводим ошибку
+        throw new Error('DATABASE_URL не установлен и не найден ни в одной альтернативной переменной. Проверьте Railway Variables!');
+    }
+
+    logAllEnvVars() {
+        // Для отладки — выводим все важные переменные
+        const keys = [
+            'DATABASE_PUBLIC_URL', 'DATABASE_URL', 'PGDATA', 'PGDATABASE', 'PGHOST', 'PGPASSWORD', 'PGPORT', 'PGUSER',
+            'POSTGRES_DB', 'POSTGRES_PASSWORD', 'POSTGRES_USER', 'RAILWAY_DEPLOYMENT_DRAINING_SECONDS', 'SSL_CERT_DAYS',
+            'RAILWAY_PRIVATE_DOMAIN', 'RAILWAY_TCP_PROXY_DOMAIN', 'RAILWAY_TCP_PROXY_PORT', 'NODE_ENV', 'PORT', 'RAILWAY_DOMAIN'
+        ];
+        console.log('=== ENVIRONMENT VARIABLES ===');
+        keys.forEach(key => {
+            console.log(`  - ${key}:`, process.env[key] || 'NOT SET');
+        });
+        console.log('============================');
+    }
+
     async initDatabase() {
         try {
-            console.log('🔍 Проверка подключения к базе данных...');
-            
-            // Проверяем переменные окружения
-            console.log('  - DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
-            console.log('  - NODE_ENV:', process.env.NODE_ENV);
-            console.log('  - RAILWAY_DOMAIN:', process.env.RAILWAY_DOMAIN);
-            
+            this.logAllEnvVars();
+            // Получаем URL
+            const dbUrl = this.getDatabaseUrl();
+            console.log('  - DATABASE_URL (used):', dbUrl ? dbUrl : 'NOT SET');
             // Ждем немного перед подключением
             console.log('⏳ Ожидание готовности PostgreSQL...');
             await new Promise(resolve => setTimeout(resolve, 5000));
-            
             console.log('🚂 Подключение к Railway PostgreSQL...');
-            
-            // Создаем пул с повторными попытками
             this.pool = new Pool({
-                connectionString: process.env.DATABASE_URL,
-                ssl: {
-                    rejectUnauthorized: false
-                },
+                connectionString: dbUrl,
+                ssl: dbUrl.includes('railway') || dbUrl.includes('proxy') ? { rejectUnauthorized: false } : false,
                 connectionTimeoutMillis: 30000,
                 idleTimeoutMillis: 30000,
                 max: 20,
                 retryDelay: 1000,
                 maxRetries: 5
             });
-            
-            // Тестируем подключение
             const client = await this.pool.connect();
             console.log('✅ Подключение к базе данных успешно');
             client.release();
-            
-            // Инициализируем базу данных
             await this.initializeDatabase();
-            
         } catch (error) {
             console.error('❌ Ошибка подключения к БД:', error.message);
-            console.log('🔧 Убедитесь, что DATABASE_URL установлен в Railway Variables');
-            console.log('🔧 Проверьте, что PostgreSQL сервис добавлен в Railway');
-            
+            console.log('🔧 Убедитесь, что все переменные Railway установлены правильно!');
             // Повторная попытка через 10 секунд
             console.log('🔄 Повторная попытка через 10 секунд...');
             await new Promise(resolve => setTimeout(resolve, 10000));
-            
             try {
+                const dbUrl = this.getDatabaseUrl();
                 console.log('🚂 Повторное подключение к Railway PostgreSQL...');
                 this.pool = new Pool({
-                    connectionString: process.env.DATABASE_URL,
-                    ssl: {
-                        rejectUnauthorized: false
-                    },
+                    connectionString: dbUrl,
+                    ssl: dbUrl.includes('railway') || dbUrl.includes('proxy') ? { rejectUnauthorized: false } : false,
                     connectionTimeoutMillis: 30000,
                     idleTimeoutMillis: 30000,
                     max: 20
                 });
-                
                 const client = await this.pool.connect();
                 console.log('✅ Повторное подключение успешно');
                 client.release();
-                
                 await this.initializeDatabase();
-                
             } catch (retryError) {
                 console.error('❌ Повторная попытка не удалась:', retryError.message);
                 throw new Error('Не удалось подключиться к базе данных после повторных попыток');
