@@ -1,0 +1,125 @@
+{
+    "exchanges": {
+        "bitfinex": {
+            "key": null,
+            "secret": null
+        },
+        "bitmex": {
+            "key": null,
+            "secret": null
+        },
+        "binance": {
+            "key": "YOUR_BINANCE_API_KEY",
+            "secret": "YOUR_BINANCE_SECRET_KEY"
+        },
+        "binance_margin": {
+            "key": "YOUR_BINANCE_MARGIN_API_KEY",
+            "secret": "YOUR_BINANCE_MARGIN_SECRET_KEY"
+        },
+        "binance_futures": {
+            "key": "YOUR_BINANCE_FUTURES_API_KEY",
+            "secret": "YOUR_BINANCE_FUTURES_SECRET_KEY"
+        },
+        "binance_futures_coin": {
+            "key": "YOUR_BINANCE_FUTURES_COIN_API_KEY",
+            "secret": "YOUR_BINANCE_FUTURES_COIN_SECRET_KEY"
+        },
+        "coinbase_pro": {
+            "key": "YOUR_COINBASE_API_KEY",
+            "secret": "YOUR_COINBASE_SECRET_KEY",
+            "passphrase": "YOUR_COINBASE_PASSPHRASE"
+        },
+        "bybit": {
+            "key": "YOUR_BYBIT_API_KEY",
+            "secret": "YOUR_BYBIT_SECRET_KEY"
+        },
+        "bybit_unified": {
+            "key": "YOUR_BYBIT_UNIFIED_API_KEY",
+            "secret": "YOUR_BYBIT_UNIFIED_SECRET_KEY"
+        }
+    },
+    "notify": {
+        "slack": {
+            "webhook": null,
+            "name": "crypto-bot",
+            "icon_emoji": ":ghost:"
+        },
+        "mail": {
+            "to": "your-email@example.com",
+            "username": "your-email@example.com",
+            "password": "your-password",
+            "server": "smtp.gmail.com",
+            "port": 465
+        },
+        "telegram" : {
+            "chat_id": "YOUR_TELEGRAM_CHAT_ID",
+            "token": "YOUR_TELEGRAM_BOT_TOKEN"
+        }
+    },
+    "log": {
+      "telegram": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "token": "YOUR_TELEGRAM_BOT_TOKEN",
+        "level": "debug"
+      }
+    },
+    "webserver": {
+        "ip": "0.0.0.0",
+        "port": 8080,
+        "username": "admin",
+        "password": "your-password"
+    },
+    "tick": {
+        "default": 1000,
+        "warmup": 1000,
+        "signal": 1000,
+        "watchdog": 1000,
+        "ordering": 1000,
+        "pair_signal_concurrency": 1
+    },
+    "order": {
+        "retry": 3,
+        "retry_ms": 1000
+    },
+    "dashboard":{
+        "periods": ["15m", "1h"]
+    },
+    "desks": [
+        {
+          "name":"Crypto Trading Dashboard",
+          "grid":4,
+          "intervals":[
+            15,
+            60,
+            1440
+          ],
+          "height":400,
+          "pairs":[
+            {
+              "symbol":"bybit_unified:BTC/USDT:USDT"
+            },
+            {
+              "symbol":"bybit_unified:ETH/USDT:USDT"
+            },
+            {
+              "symbol":"binance:BTCUSDT"
+            },
+            {
+              "symbol":"binance:ETHUSDT"
+            },
+            {
+              "symbol":"binance_futures:BTCUSDT"
+            },
+            {
+              "symbol":"binance_futures:ETHUSDT"
+            },
+            {
+              "symbol":"coinbase_pro:BTC-USD"
+            },
+            {
+              "symbol":"coinbase_pro:ETH-USD"
+            }
+          ]
+        }
+    ]
+} 

@@ -1,15 +1,35 @@
-version: '3.7'
+version: '3.8'
 
 services:
-  bot:
-    container_name: crypto-trading-bot
-    image: node:10
-    build:
-        context: .
-        dockerfile: Dockerfile
-    volumes:
-        - .:/usr/src/app
-        - /usr/src/app/node_modules
+  app:
+    build: .
     ports:
-        - "8080:8080"
-    command: npm start
+      - "8082:8082"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - NODE_ENV=production
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8082/api/stats', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: crypto_trading
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./new_database_schema.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

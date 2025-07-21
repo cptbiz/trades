@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+        }
+        .table {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+        }
+        .positive { color: #28a745; }
+        .negative { color: #dc3545; }
+        .neutral { color: #6c757d; }
+        .refresh-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+        }
+        .filter-section {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-chart-line me-2"></i>
+                {{ title }}
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text">
+                    <i class="fas fa-clock me-1"></i>
+                    <span id="lastUpdate">Loading...</span>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stats-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-chart-bar fa-2x mb-2"></i>
+                        <h5 class="card-title">Total Pairs</h5>
+                        <h3 id="totalPairs">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-dollar-sign fa-2x mb-2"></i>
+                        <h5 class="card-title">Total OI</h5>
+                        <h3 id="totalOI">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-exchange-alt fa-2x mb-2"></i>
+                        <h5 class="card-title">Exchanges</h5>
+                        <h3 id="totalExchanges">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-percentage fa-2x mb-2"></i>
+                        <h5 class="card-title">Avg Change</h5>
+                        <h3 id="avgChange">-</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-section">
+            <div class="row">
+                <div class="col-md-3">
+                    <label for="exchangeFilter" class="form-label">Exchange</label>
+                    <select class="form-select" id="exchangeFilter">
+                        <option value="">All Exchanges</option>
+                        <option value="bybit_unified">Bybit Unified</option>
+                        <option value="binance_futures">Binance Futures</option>
+                        <option value="coinbase_pro">Coinbase Pro</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="symbolFilter" class="form-label">Symbol</label>
+                    <input type="text" class="form-control" id="symbolFilter" placeholder="Search symbol...">
+                </div>
+                <div class="col-md-3">
+                    <label for="sortBy" class="form-label">Sort By</label>
+                    <select class="form-select" id="sortBy">
+                        <option value="openInterest">Open Interest</option>
+                        <option value="openInterestChangePercent">OI Change %</option>
+                        <option value="price">Price</option>
+                        <option value="priceChangePercent">Price Change %</option>
+                        <option value="volume24h">Volume 24h</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="sortOrder" class="form-label">Sort Order</label>
+                    <select class="form-select" id="sortOrder">
+                        <option value="desc">Descending</option>
+                        <option value="asc">Ascending</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-12">
+                    <button class="btn refresh-btn" onclick="refreshData()">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh Data
+                    </button>
+                    <button class="btn btn-outline-secondary ms-2" onclick="exportData()">
+                        <i class="fas fa-download me-2"></i>Export CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p class="mt-2">Loading data...</p>
+        </div>
+
+        <!-- Data Table -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-table me-2"></i>
+                    Open Interest Data
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="oiTable">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Exchange</th>
+                                <th>Open Interest</th>
+                                <th>OI Change</th>
+                                <th>Price</th>
+                                <th>Price Change</th>
+                                <th>Volume 24h</th>
+                                <th>Funding Rate</th>
+                                <th>L/S Ratio</th>
+                            </tr>
+                        </thead>
+                        <tbody id="oiTableBody">
+                            <tr>
+                                <td colspan="9" class="text-center">Loading data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-pie me-2"></i>
+                            Open Interest Distribution
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="oiChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>
+                            Price vs OI Change
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="priceOIChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let oiData = [];
+        let oiChart = null;
+        let priceOIChart = null;
+
+        // Format numbers
+        function formatNumber(num) {
+            if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+            if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+            if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+            return num.toFixed(2);
+        }
+
+        // Format percentage
+        function formatPercent(num) {
+            return (num * 100).toFixed(2) + '%';
+        }
+
+        // Update statistics
+        function updateStats(data) {
+            const totalPairs = data.length;
+            const totalOI = data.reduce((sum, item) => sum + item.openInterest, 0);
+            const exchanges = [...new Set(data.map(item => item.exchange))].length;
+            const avgChange = data.length > 0 ? 
+                data.reduce((sum, item) => sum + item.openInterestChangePercent, 0) / data.length : 0;
+
+            document.getElementById('totalPairs').textContent = totalPairs;
+            document.getElementById('totalOI').textContent = formatNumber(totalOI);
+            document.getElementById('totalExchanges').textContent = exchanges;
+            document.getElementById('avgChange').textContent = formatPercent(avgChange);
+        }
+
+        // Update table
+        function updateTable(data) {
+            console.log('Updating table with', data.length, 'items');
+            console.log('Sample data:', data.slice(0, 3));
+            
+            const tbody = document.getElementById('oiTableBody');
+            tbody.innerHTML = '';
+
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${item.symbol}</strong></td>
+                    <td><span class="badge bg-primary">${item.exchange.replace(/_/g, ' ')}</span></td>
+                    <td><strong>${formatNumber(item.openInterest)}</strong></td>
+                    <td class="${item.openInterestChangePercent > 0 ? 'positive' : item.openInterestChangePercent < 0 ? 'negative' : 'neutral'}">
+                        ${formatPercent(item.openInterestChangePercent)}
+                    </td>
+                    <td><strong>$${item.price.toFixed(2)}</strong></td>
+                    <td class="${item.priceChangePercent > 0 ? 'positive' : item.priceChangePercent < 0 ? 'negative' : 'neutral'}">
+                        ${formatPercent(item.priceChangePercent)}
+                    </td>
+                    <td>${formatNumber(item.volume24h)}</td>
+                    <td>${formatPercent(item.fundingRate)}</td>
+                    <td>${item.longShortRatio.toFixed(2)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Update charts
+        function updateCharts(data) {
+            // OI Distribution Chart
+            const oiCtx = document.getElementById('oiChart').getContext('2d');
+            if (oiChart) oiChart.destroy();
+            
+            const topOI = data.slice(0, 5);
+            oiChart = new Chart(oiCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: topOI.map(item => item.symbol),
+                    datasets: [{
+                        data: topOI.map(item => item.openInterest),
+                        backgroundColor: [
+                            '#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+
+            // Price vs OI Change Chart
+            const priceCtx = document.getElementById('priceOIChart').getContext('2d');
+            if (priceOIChart) priceOIChart.destroy();
+            
+            priceOIChart = new Chart(priceCtx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Price vs OI Change',
+                        data: data.map(item => ({
+                            x: item.price,
+                            y: item.openInterestChangePercent
+                        })),
+                        backgroundColor: data.map(item => 
+                            item.openInterestChangePercent > 0 ? '#28a745' : '#dc3545'
+                        )
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Price ($)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'OI Change (%)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load data
+        async function loadData() {
+            showLoading(true);
+            try {
+                const exchange = document.getElementById('exchangeFilter').value;
+                const symbol = document.getElementById('symbolFilter').value;
+                const sortBy = document.getElementById('sortBy').value;
+                const sortOrder = document.getElementById('sortOrder').value;
+
+                let url = '/api/oi/data?';
+                if (exchange) url += `exchange=${exchange}&`;
+                if (symbol) url += `symbol=${symbol}&`;
+                url += `sortBy=${sortBy}&sortOrder=${sortOrder}`;
+
+                console.log('Loading data from:', url);
+                console.log('Exchange filter:', exchange);
+                console.log('Symbol filter:', symbol);
+
+                const response = await fetch(url);
+                const result = await response.json();
+
+                if (result.success) {
+                    oiData = result.data;
+                    console.log('Loaded data:', oiData.length, 'records');
+                    console.log('Exchanges in data:', [...new Set(oiData.map(item => item.exchange))]);
+                    console.log('Sample data:', oiData.slice(0, 3));
+                    console.log('Binance data count:', oiData.filter(item => item.exchange === 'binance_futures').length);
+                    console.log('Bybit data count:', oiData.filter(item => item.exchange === 'bybit_unified').length);
+                    console.log('Coinbase data count:', oiData.filter(item => item.exchange === 'coinbase_pro').length);
+                    updateStats(oiData);
+                    updateTable(oiData);
+                    updateCharts(oiData);
+                    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+                } else {
+                    console.error('API error:', result.error);
+                }
+            } catch (error) {
+                console.error('Error loading data:', error);
+            }
+            showLoading(false);
+        }
+
+        // Refresh data
+        async function refreshData() {
+            try {
+                const response = await fetch('/api/oi/refresh', { method: 'POST' });
+                const result = await response.json();
+                if (result.success) {
+                    await loadData();
+                }
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+            }
+        }
+
+        // Export data
+        function exportData() {
+            const csv = [
+                ['Symbol', 'Exchange', 'Open Interest', 'OI Change %', 'Price', 'Price Change %', 'Volume 24h', 'Funding Rate', 'L/S Ratio'].join(','),
+                ...oiData.map(item => [
+                    item.symbol,
+                    item.exchange,
+                    item.openInterest,
+                    item.openInterestChangePercent,
+                    item.price,
+                    item.priceChangePercent,
+                    item.volume24h,
+                    item.fundingRate,
+                    item.longShortRatio
+                ].join(','))
+            ].join('\n');
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'oi_data.csv';
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        // Show/hide loading
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        // Event listeners
+        document.getElementById('exchangeFilter').addEventListener('change', loadData);
+        document.getElementById('symbolFilter').addEventListener('input', loadData);
+        document.getElementById('sortBy').addEventListener('change', loadData);
+        document.getElementById('sortOrder').addEventListener('change', loadData);
+
+        // Auto refresh every 30 seconds
+        setInterval(loadData, 30000);
+
+        // Initial load
+        loadData();
+    </script>
+</body>
+</html> 

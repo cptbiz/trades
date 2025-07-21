@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Collector Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .card {
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            border: 1px solid rgba(0, 0, 0, 0.125);
+        }
+        .status-running { color: #28a745; }
+        .status-stopped { color: #dc3545; }
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .metric-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        .table-responsive {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+        .log-info { color: #17a2b8; }
+        .log-success { color: #28a745; }
+        .log-warning { color: #ffc107; }
+        .log-error { color: #dc3545; }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid py-4">
+        <div class="row mb-4">
+            <div class="col-12">
+                <h1 class="text-center mb-4">
+                    <i class="fas fa-database me-2"></i>
+                    Data Collector Dashboard
+                </h1>
+            </div>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cogs me-2"></i>
+                            Control Panel
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <button id="startBtn" class="btn btn-success btn-lg w-100 mb-2">
+                                    <i class="fas fa-play me-2"></i>
+                                    Start Collection
+                                </button>
+                            </div>
+                            <div class="col-md-3">
+                                <button id="stopBtn" class="btn btn-danger btn-lg w-100 mb-2">
+                                    <i class="fas fa-stop me-2"></i>
+                                    Stop Collection
+                                </button>
+                            </div>
+                            <div class="col-md-3">
+                                <button id="collectBtn" class="btn btn-primary btn-lg w-100 mb-2">
+                                    <i class="fas fa-sync me-2"></i>
+                                    Collect Now
+                                </button>
+                            </div>
+                            <div class="col-md-3">
+                                <button id="refreshBtn" class="btn btn-info btn-lg w-100 mb-2">
+                                    <i class="fas fa-refresh me-2"></i>
+                                    Refresh Stats
+                                </button>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label for="intervalInput" class="form-label">Collection Interval (minutes):</label>
+                                <input type="number" id="intervalInput" class="form-control" value="1" min="1" max="60">
+                            </div>
+                            <div class="col-md-6">
+                                <div class="d-flex align-items-center h-100">
+                                    <div class="me-3">
+                                        <strong>Status:</strong>
+                                    </div>
+                                    <div id="statusIndicator" class="status-stopped">
+                                        <i class="fas fa-circle me-1"></i>
+                                        <span id="statusText">Stopped</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card metric-card">
+                    <div class="card-body text-center">
+                        <div class="metric-value" id="candlesCount">0</div>
+                        <div class="metric-label">Candles</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card metric-card">
+                    <div class="card-body text-center">
+                        <div class="metric-value" id="oiCount">0</div>
+                        <div class="metric-label">Open Interest</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card metric-card">
+                    <div class="card-body text-center">
+                        <div class="metric-value" id="fundingCount">0</div>
+                        <div class="metric-label">Funding Rates</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card metric-card">
+                    <div class="card-body text-center">
+                        <div class="metric-value" id="orderbookCount">0</div>
+                        <div class="metric-label">Order Books</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Tables -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-table me-2"></i>
+                            Recent Candles
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Symbol</th>
+                                        <th>Exchange</th>
+                                        <th>Timeframe</th>
+                                        <th>Close</th>
+                                        <th>Volume</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="candlesTable">
+                                    <tr>
+                                        <td colspan="5" class="text-center">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>
+                            Recent Open Interest
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Symbol</th>
+                                        <th>Exchange</th>
+                                        <th>OI</th>
+                                        <th>Change %</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="oiTable">
+                                    <tr>
+                                        <td colspan="4" class="text-center">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-terminal me-2"></i>
+                            Collection Logs
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="logsContainer" style="max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 1rem; border-radius: 0.375rem;">
+                            <div class="log-entry log-info">System initialized...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let isRunning = false;
+
+        // API functions
+        async function apiCall(endpoint, method = 'GET', data = null) {
+            try {
+                const options = {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                };
+                
+                if (data) {
+                    options.body = JSON.stringify(data);
+                }
+
+                const response = await fetch(`/api/${endpoint}`, options);
+                return await response.json();
+            } catch (error) {
+                console.error('API Error:', error);
+                addLog('error', `API Error: ${error.message}`);
+                return { success: false, error: error.message };
+            }
+        }
+
+        // UI functions
+        function updateStatus(running) {
+            isRunning = running;
+            const indicator = document.getElementById('statusIndicator');
+            const text = document.getElementById('statusText');
+            
+            if (running) {
+                indicator.className = 'status-running';
+                text.textContent = 'Running';
+            } else {
+                indicator.className = 'status-stopped';
+                text.textContent = 'Stopped';
+            }
+        }
+
+        function addLog(level, message) {
+            const container = document.getElementById('logsContainer');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${level}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function loadStats() {
+            const result = await apiCall('stats');
+            if (result.success) {
+                document.getElementById('candlesCount').textContent = result.data.candles || 0;
+                document.getElementById('oiCount').textContent = result.data.open_interest || 0;
+                document.getElementById('fundingCount').textContent = result.data.funding || 0;
+                document.getElementById('orderbookCount').textContent = result.data.orderbook_snapshots || 0;
+                
+                if (result.data.lastUpdate) {
+                    addLog('info', `Last update: ${new Date(result.data.lastUpdate).toLocaleString()}`);
+                }
+            }
+        }
+
+        // Event handlers
+        document.getElementById('startBtn').addEventListener('click', async () => {
+            const interval = document.getElementById('intervalInput').value;
+            const result = await apiCall('start', 'POST', { interval: parseInt(interval) });
+            
+            if (result.success) {
+                updateStatus(true);
+                addLog('success', result.message);
+            } else {
+                addLog('error', result.error);
+            }
+        });
+
+        document.getElementById('stopBtn').addEventListener('click', async () => {
+            const result = await apiCall('stop', 'POST');
+            
+            if (result.success) {
+                updateStatus(false);
+                addLog('success', result.message);
+            } else {
+                addLog('error', result.error);
+            }
+        });
+
+        document.getElementById('collectBtn').addEventListener('click', async () => {
+            addLog('info', 'Starting manual data collection...');
+            const result = await apiCall('collect', 'POST');
+            
+            if (result.success) {
+                addLog('success', result.message);
+                await loadStats();
+            } else {
+                addLog('error', result.error);
+            }
+        });
+
+        document.getElementById('refreshBtn').addEventListener('click', async () => {
+            addLog('info', 'Refreshing statistics...');
+            await loadStats();
+        });
+
+        // Auto-refresh stats every 30 seconds
+        setInterval(loadStats, 30000);
+
+        // Initial load
+        loadStats();
+        addLog('info', 'Dashboard loaded');
+    </script>
+</body>
+</html> 
