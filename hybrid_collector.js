@@ -9,83 +9,39 @@ console.log('🔧 FIXING RAILWAY VARIABLES - ' + new Date().toISOString());
 
 // ==================== ENVIRONMENT VARIABLES ====================
 const ENV = {
-    // Database - Railway PostgreSQL с правильными переменными
-    DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:pvVDFCUgBFcCTtkuCIgyeqcFlbUvXNtt@postgres.railway.internal:5432/railway',
+    // Database - только Supabase/Postgres
+    DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV || 'production',
-    
-    // Server - Railway defaults
     PORT: process.env.PORT || 8082,
     IP: process.env.IP || '0.0.0.0',
-    
-    // Logging
     LOG_LEVEL: process.env.LOG_LEVEL || 'info',
-    
-    // WebSocket Configuration
     WS_RECONNECT_INTERVAL: parseInt(process.env.WS_RECONNECT_INTERVAL) || 5000,
     WS_PING_INTERVAL: parseInt(process.env.WS_PING_INTERVAL) || 20000,
-    
-    // API Configuration
     API_RATE_LIMIT: parseInt(process.env.API_RATE_LIMIT) || 100,
     API_TIMEOUT: parseInt(process.env.API_TIMEOUT) || 30000,
-    
-    // Railway Specific - правильные переменные
-    RAILWAY_PUBLIC_DOMAIN: process.env.RAILWAY_PUBLIC_DOMAIN,
-    RAILWAY_PRIVATE_DOMAIN: process.env.RAILWAY_PRIVATE_DOMAIN,
-    RAILWAY_PROJECT_NAME: process.env.RAILWAY_PROJECT_NAME,
-    RAILWAY_SERVICE_NAME: process.env.RAILWAY_SERVICE_NAME,
-    
-    // PostgreSQL Railway переменные
+    PGUSER: process.env.PGUSER || 'postgres',
+    PGPASSWORD: process.env.PGPASSWORD || '',
+    PGDATABASE: process.env.PGDATABASE || 'postgres',
+    PGHOST: process.env.PGHOST || '',
+    PGPORT: process.env.PGPORT || '5432',
     POSTGRES_USER: process.env.POSTGRES_USER || 'postgres',
-    POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD || 'pvVDFCUgBFcCTtkuCIgyeqcFlbUvXNtt',
-    POSTGRES_DB: process.env.POSTGRES_DB || 'railway',
-    PGHOST: process.env.PGHOST || 'postgres.railway.internal',
-    PGPORT: process.env.PGPORT || '5432'
+    POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD || '',
+    POSTGRES_DB: process.env.POSTGRES_DB || 'postgres'
 };
 
-// Принудительная проверка Railway переменных
-if (process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RAILWAY_PRIVATE_DOMAIN) {
-    console.log('🚂 Railway Environment Detected!');
-    ENV.NODE_ENV = 'production';
-    ENV.PORT = process.env.PORT || 8082;
-    
-    // ПРИНУДИТЕЛЬНО используем Railway DATABASE_URL или строим из переменных
-    if (process.env.DATABASE_URL) {
-        ENV.DATABASE_URL = process.env.DATABASE_URL;
-        console.log('✅ Railway PostgreSQL URL detected');
-        console.log(`🔗 DATABASE_URL: ${process.env.DATABASE_URL.substring(0, 50)}...`);
-    } else if (process.env.POSTGRES_USER && process.env.POSTGRES_PASSWORD && process.env.RAILWAY_PRIVATE_DOMAIN) {
-        // Строим DATABASE_URL из Railway переменных
-        ENV.DATABASE_URL = `postgresql://${process.env.POSTGRES_USER}:${process.env.POSTGRES_PASSWORD}@${process.env.RAILWAY_PRIVATE_DOMAIN}:5432/${process.env.POSTGRES_DB || 'railway'}`;
-        console.log('✅ Railway PostgreSQL URL built from variables');
-        console.log(`🔗 DATABASE_URL: ${ENV.DATABASE_URL.substring(0, 50)}...`);
-    } else {
-        console.log('❌ ERROR: DATABASE_URL not found in Railway');
-        console.log('🔧 Using fallback Railway PostgreSQL URL');
-        ENV.DATABASE_URL = 'postgresql://postgres:pvVDFCUgBFcCTtkuCIgyeqcFlbUvXNtt@postgres.railway.internal:5432/railway';
-    }
-    
-    // Проверяем, что это правильный Railway URL
-    if (ENV.DATABASE_URL.includes('railway.internal') || ENV.DATABASE_URL.includes('railway')) {
-        console.log('✅ Railway PostgreSQL URL confirmed');
-    } else {
-        console.log('⚠️  Warning: DATABASE_URL may not be Railway PostgreSQL');
-    }
-}
-
+// Удаляем все Railway-specific проверки и fallback
 console.log('📋 Environment Configuration:');
 console.log(`  - NODE_ENV: ${ENV.NODE_ENV}`);
 console.log(`  - PORT: ${ENV.PORT}`);
 console.log(`  - DATABASE_URL: ${ENV.DATABASE_URL ? 'SET' : 'NOT SET'}`);
-console.log(`  - RAILWAY_DOMAIN: ${ENV.RAILWAY_PUBLIC_DOMAIN || 'NOT SET'}`);
-console.log(`  - POSTGRES_USER: ${ENV.POSTGRES_USER}`);
-console.log(`  - POSTGRES_DB: ${ENV.POSTGRES_DB}`);
+console.log(`  - PGUSER: ${ENV.PGUSER}`);
+console.log(`  - PGDATABASE: ${ENV.PGDATABASE}`);
 console.log(`  - PGHOST: ${ENV.PGHOST}`);
 
 // ==================== DATABASE CONFIGURATION ====================
 const pool = new Pool({
     connectionString: ENV.DATABASE_URL,
     ssl: ENV.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-    // Railway PostgreSQL specific settings
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 2000,
@@ -133,42 +89,13 @@ class HybridCollector {
     }
 
     getDatabaseUrl() {
-        // 1. Прямо из переменной
+        // Используем только DATABASE_URL
         let url = process.env.DATABASE_URL;
-        if (url && !url.includes('${{') && url !== '') {
+        if (url && url !== '') {
             console.log('[DB] Использую DATABASE_URL:', url);
             return url;
         }
-        // 2. PUBLIC_URL
-        if (process.env.DATABASE_PUBLIC_URL && !process.env.DATABASE_PUBLIC_URL.includes('${{')) {
-            console.log('[DB] Использую DATABASE_PUBLIC_URL:', process.env.DATABASE_PUBLIC_URL);
-            return process.env.DATABASE_PUBLIC_URL;
-        }
-        // 3. Явно собираем из приватных переменных Railway
-        const pgUser = process.env.PGUSER || process.env.POSTGRES_USER || 'postgres';
-        const pgPassword = process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD || '';
-        const pgDatabase = process.env.PGDATABASE || process.env.POSTGRES_DB || 'railway';
-        const privateHost = process.env.RAILWAY_PRIVATE_DOMAIN || process.env.PGHOST || 'postgres-production-5ded.up.railway.app';
-        const proxyHost = process.env.RAILWAY_TCP_PROXY_DOMAIN || 'trolley.proxy.rlwy.net';
-        const proxyPort = process.env.RAILWAY_TCP_PROXY_PORT || '30676';
-        // Если есть приватный домен
-        if (privateHost) {
-            const privateUrl = `postgresql://${pgUser}:${pgPassword}@${privateHost}:5432/${pgDatabase}`;
-            console.log('[DB] Использую приватный Railway домен:', privateUrl);
-            return privateUrl;
-        }
-        // Если есть публичный proxy
-        if (proxyHost && proxyPort) {
-            const proxyUrl = `postgresql://${pgUser}:${pgPassword}@${proxyHost}:${proxyPort}/${pgDatabase}`;
-            console.log('[DB] Использую публичный Railway proxy:', proxyUrl);
-            return proxyUrl;
-        }
-        // 4. Альтернативные переменные
-        if (process.env.POSTGRES_URL) return process.env.POSTGRES_URL;
-        if (process.env.POSTGRES_PRISMA_URL) return process.env.POSTGRES_PRISMA_URL;
-        if (process.env.PG_URL) return process.env.PG_URL;
-        // 5. Не найдено — выводим ошибку
-        throw new Error('DATABASE_URL не установлен и не найден ни в одной альтернативной переменной. Проверьте Railway Variables!');
+        throw new Error('DATABASE_URL не установлен. Проверьте переменные окружения!');
     }
 
     logAllEnvVars() {
@@ -200,9 +127,7 @@ class HybridCollector {
                 ssl: dbUrl.includes('railway') || dbUrl.includes('proxy') ? { rejectUnauthorized: false } : false,
                 connectionTimeoutMillis: 30000,
                 idleTimeoutMillis: 30000,
-                max: 20,
-                retryDelay: 1000,
-                maxRetries: 5
+                max: 20
             });
             const client = await this.pool.connect();
             console.log('✅ Подключение к базе данных успешно');
@@ -968,8 +893,8 @@ class HybridCollector {
             stats.environment = {
                 nodeEnv: ENV.NODE_ENV,
                 port: ENV.PORT,
-                railwayDomain: ENV.RAILWAY_PUBLIC_DOMAIN,
-                railwayProject: ENV.RAILWAY_PROJECT_NAME,
+                railwayDomain: null, // Удалено
+                railwayProject: null, // Удалено
                 uptime: process.uptime()
             };
 
@@ -1084,8 +1009,8 @@ app.get('/api/env', (req, res) => {
             nodeEnv: ENV.NODE_ENV,
             port: ENV.PORT,
             databaseUrl: ENV.DATABASE_URL ? 'SET' : 'NOT SET',
-            railwayDomain: ENV.RAILWAY_PUBLIC_DOMAIN,
-            railwayProject: ENV.RAILWAY_PROJECT_NAME,
+            railwayDomain: null, // Удалено
+            railwayProject: null, // Удалено
             uptime: process.uptime()
         }
     });
