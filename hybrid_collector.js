@@ -5,10 +5,44 @@ const axios = require('axios');
 
 console.log('🚀 Starting Hybrid Data Collector (WebSocket + REST API)...');
 
-// Конфигурация базы данных
+// ==================== ENVIRONMENT VARIABLES ====================
+const ENV = {
+    // Database
+    DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/crypto_trading',
+    NODE_ENV: process.env.NODE_ENV || 'development',
+    
+    // Server
+    PORT: process.env.PORT || 8082,
+    IP: process.env.IP || '0.0.0.0',
+    
+    // Logging
+    LOG_LEVEL: process.env.LOG_LEVEL || 'info',
+    
+    // WebSocket Configuration
+    WS_RECONNECT_INTERVAL: parseInt(process.env.WS_RECONNECT_INTERVAL) || 5000,
+    WS_PING_INTERVAL: parseInt(process.env.WS_PING_INTERVAL) || 20000,
+    
+    // API Configuration
+    API_RATE_LIMIT: parseInt(process.env.API_RATE_LIMIT) || 100,
+    API_TIMEOUT: parseInt(process.env.API_TIMEOUT) || 30000,
+    
+    // Railway Specific
+    RAILWAY_PUBLIC_DOMAIN: process.env.RAILWAY_PUBLIC_DOMAIN,
+    RAILWAY_PRIVATE_DOMAIN: process.env.RAILWAY_PRIVATE_DOMAIN,
+    RAILWAY_PROJECT_NAME: process.env.RAILWAY_PROJECT_NAME,
+    RAILWAY_SERVICE_NAME: process.env.RAILWAY_SERVICE_NAME
+};
+
+console.log('📋 Environment Configuration:');
+console.log(`  - NODE_ENV: ${ENV.NODE_ENV}`);
+console.log(`  - PORT: ${ENV.PORT}`);
+console.log(`  - DATABASE_URL: ${ENV.DATABASE_URL ? 'SET' : 'NOT SET'}`);
+console.log(`  - RAILWAY_DOMAIN: ${ENV.RAILWAY_PUBLIC_DOMAIN || 'NOT SET'}`);
+
+// ==================== DATABASE CONFIGURATION ====================
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    connectionString: ENV.DATABASE_URL,
+    ssl: ENV.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
 // Список торговых пар для Binance (все поддерживаемые)
@@ -56,10 +90,55 @@ class HybridCollector {
     async initDatabase() {
         try {
             console.log('🔍 Проверка подключения к базе данных...');
+            console.log(`  - DATABASE_URL: ${ENV.DATABASE_URL ? 'SET' : 'NOT SET'}`);
+            console.log(`  - NODE_ENV: ${ENV.NODE_ENV}`);
+            
+            if (!ENV.DATABASE_URL) {
+                throw new Error('DATABASE_URL не установлен');
+            }
+            
             await this.pool.query('SELECT 1');
             console.log('✅ Подключение к базе данных установлено');
+            
+            // Проверяем таблицы
+            const tablesResult = await this.pool.query(`
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name IN ('trading_pairs', 'tickers', 'candles', 'websocket_data')
+            `);
+            console.log(`📊 Найдено таблиц: ${tablesResult.rows.length}`);
+            
         } catch (error) {
             console.error('❌ Ошибка подключения к БД:', error.message);
+            console.error('🔧 Убедитесь, что DATABASE_URL установлен в Railway Variables');
+            throw error;
+        }
+    }
+
+    // Инициализация базы данных при первом запуске
+    async initializeDatabase() {
+        try {
+            console.log('🗄️ Инициализация базы данных...');
+            
+            // Проверяем, есть ли таблицы
+            const tablesResult = await this.pool.query(`
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'trading_pairs'
+            `);
+            
+            if (tablesResult.rows.length === 0) {
+                console.log('📝 Создание таблиц...');
+                // Здесь можно добавить создание таблиц, если нужно
+                console.log('⚠️ Таблицы не найдены. Убедитесь, что база данных инициализирована.');
+            } else {
+                console.log('✅ Таблицы найдены');
+            }
+            
+        } catch (error) {
+            console.error('❌ Ошибка инициализации БД:', error.message);
         }
     }
 
@@ -637,6 +716,22 @@ class HybridCollector {
                 candles: dataCache.candles.size
             };
 
+            // Информация о Railway
+            stats.environment = {
+                nodeEnv: ENV.NODE_ENV,
+                port: ENV.PORT,
+                railwayDomain: ENV.RAILWAY_PUBLIC_DOMAIN,
+                railwayProject: ENV.RAILWAY_PROJECT_NAME,
+                uptime: process.uptime()
+            };
+
+            // Статус соединений
+            stats.connections = {
+                binance: binanceWS ? 'connected' : 'disconnected',
+                bybit: bybitWS ? 'connected' : 'disconnected',
+                coinbase: coinbaseWS ? 'connected' : 'disconnected'
+            };
+
             return stats;
         } catch (error) {
             console.error('❌ Ошибка получения статистики:', error.message);
@@ -656,6 +751,7 @@ class HybridCollector {
         
         // Инициализация базы данных
         await this.initDatabase();
+        await this.initializeDatabase();
         
         // Запускаем все WebSocket соединения
         this.initializeBinanceWS();
@@ -733,6 +829,20 @@ app.get('/api/tickers/:exchange?', (req, res) => {
     }
 });
 
+app.get('/api/env', (req, res) => {
+    res.json({
+        success: true,
+        data: {
+            nodeEnv: ENV.NODE_ENV,
+            port: ENV.PORT,
+            databaseUrl: ENV.DATABASE_URL ? 'SET' : 'NOT SET',
+            railwayDomain: ENV.RAILWAY_PUBLIC_DOMAIN,
+            railwayProject: ENV.RAILWAY_PROJECT_NAME,
+            uptime: process.uptime()
+        }
+    });
+});
+
 app.post('/api/start', async (req, res) => {
     await collector.start();
     res.json({ success: true, message: 'Гибридный коллектор запущен' });
@@ -744,8 +854,8 @@ app.post('/api/stop', (req, res) => {
 });
 
 // Запуск сервера
-const port = process.env.PORT || 8082;
-const ip = process.env.IP || '0.0.0.0';
+const port = ENV.PORT;
+const ip = ENV.IP;
 
 console.log('🚀 Запуск Hybrid Collector сервера...');
 
