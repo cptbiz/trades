@@ -196,6 +196,64 @@ class HybridCollector {
                 console.log('✅ Таблицы найдены');
             }
             
+            // АВТОМАТИЧЕСКОЕ СОЗДАНИЕ ТАБЛИЦЫ WEBSOCKET_DATA
+            console.log('🔧 Проверка таблицы websocket_data...');
+            try {
+                // Проверяем существование таблицы websocket_data
+                const websocketTableResult = await this.pool.query(`
+                    SELECT table_name 
+                    FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'websocket_data'
+                `);
+                
+                if (websocketTableResult.rows.length === 0) {
+                    console.log('📝 Создание таблицы websocket_data...');
+                    await this.pool.query(`
+                        CREATE TABLE websocket_data (
+                            id SERIAL PRIMARY KEY,
+                            exchange_id INTEGER NOT NULL,
+                            symbol VARCHAR(20) NOT NULL,
+                            data_type VARCHAR(50) NOT NULL,
+                            raw_data TEXT,
+                            processed_data JSONB,
+                            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    `);
+                    console.log('✅ Таблица websocket_data создана');
+                } else {
+                    console.log('✅ Таблица websocket_data существует');
+                    
+                    // Проверяем колонку symbol
+                    const symbolColumnResult = await this.pool.query(`
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'websocket_data' 
+                        AND column_name = 'symbol'
+                    `);
+                    
+                    if (symbolColumnResult.rows.length === 0) {
+                        console.log('🔧 Добавление колонки symbol в websocket_data...');
+                        await this.pool.query(`
+                            ALTER TABLE websocket_data ADD COLUMN symbol VARCHAR(20)
+                        `);
+                        console.log('✅ Колонка symbol добавлена');
+                    } else {
+                        console.log('✅ Колонка symbol существует');
+                    }
+                }
+                
+                // Создаем индексы
+                console.log('📊 Создание индексов для websocket_data...');
+                await this.pool.query('CREATE INDEX IF NOT EXISTS idx_websocket_data_exchange_id ON websocket_data(exchange_id)');
+                await this.pool.query('CREATE INDEX IF NOT EXISTS idx_websocket_data_timestamp ON websocket_data(timestamp)');
+                await this.pool.query('CREATE INDEX IF NOT EXISTS idx_websocket_data_symbol ON websocket_data(symbol)');
+                console.log('✅ Индексы созданы');
+                
+            } catch (error) {
+                console.error('❌ Ошибка создания таблицы websocket_data:', error.message);
+            }
+            
         } catch (error) {
             console.error('❌ Ошибка инициализации БД:', error.message);
         }
