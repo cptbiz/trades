@@ -357,6 +357,11 @@ class HybridCollector {
 
     // Сохранение WebSocket данных
     async saveWebSocketData(exchangeId, symbol, dataType, rawData, processedData = null) {
+        // ВРЕМЕННО ОТКЛЮЧЕНО - исправляем структуру таблицы
+        console.log(`📝 WebSocket данные (${dataType}): ${symbol} - временно не сохраняются`);
+        return;
+        
+        /*
         try {
             // Проверяем структуру таблицы websocket_data
             const tableStructure = await this.pool.query(`
@@ -424,6 +429,7 @@ class HybridCollector {
                 console.error('❌ Ошибка сохранения WebSocket данных:', error.message);
             }
         }
+        */
     }
 
     // Получение ID интервала
