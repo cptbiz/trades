@@ -397,7 +397,32 @@ class HybridCollector {
             
             await this.pool.query(query, params);
         } catch (error) {
-            console.error('❌ Ошибка сохранения WebSocket данных:', error.message);
+            // Если ошибка связана с pair_symbol, пытаемся исправить структуру таблицы
+            if (error.message.includes('pair_symbol') && error.message.includes('not-null constraint')) {
+                console.log('🔧 Автоматическое исправление структуры таблицы...');
+                try {
+                    // Делаем pair_symbol nullable
+                    await this.pool.query(`
+                        ALTER TABLE websocket_data ALTER COLUMN pair_symbol DROP NOT NULL
+                    `);
+                    console.log('✅ pair_symbol сделан nullable');
+                    
+                    // Повторяем попытку сохранения
+                    const retryQuery = `
+                        INSERT INTO websocket_data (exchange_id, pair_symbol, data_type, raw_data, processed_data, timestamp)
+                        VALUES ($1, $2, $3, $4, $5, $6)
+                    `;
+                    await this.pool.query(retryQuery, [
+                        exchangeId, symbol, dataType, JSON.stringify(rawData), 
+                        processedData ? JSON.stringify(processedData) : null, Date.now()
+                    ]);
+                    console.log('✅ Данные сохранены после исправления');
+                } catch (fixError) {
+                    console.error('❌ Не удалось исправить структуру таблицы:', fixError.message);
+                }
+            } else {
+                console.error('❌ Ошибка сохранения WebSocket данных:', error.message);
+            }
         }
     }
 
