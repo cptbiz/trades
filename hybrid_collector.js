@@ -224,6 +224,19 @@ class HybridCollector {
                 } else {
                     console.log('✅ Таблица websocket_data существует');
                     
+                    // Проверяем структуру существующей таблицы
+                    const tableStructure = await this.pool.query(`
+                        SELECT column_name, data_type, is_nullable
+                        FROM information_schema.columns 
+                        WHERE table_name = 'websocket_data' 
+                        ORDER BY ordinal_position
+                    `);
+                    
+                    console.log('📋 Структура таблицы websocket_data:');
+                    tableStructure.rows.forEach(row => {
+                        console.log(`  - ${row.column_name}: ${row.data_type} (nullable: ${row.is_nullable})`);
+                    });
+                    
                     // Проверяем колонку symbol
                     const symbolColumnResult = await this.pool.query(`
                         SELECT column_name 
@@ -234,10 +247,14 @@ class HybridCollector {
                     
                     if (symbolColumnResult.rows.length === 0) {
                         console.log('🔧 Добавление колонки symbol в websocket_data...');
-                        await this.pool.query(`
-                            ALTER TABLE websocket_data ADD COLUMN symbol VARCHAR(20)
-                        `);
-                        console.log('✅ Колонка symbol добавлена');
+                        try {
+                            await this.pool.query(`
+                                ALTER TABLE websocket_data ADD COLUMN symbol VARCHAR(20)
+                            `);
+                            console.log('✅ Колонка symbol добавлена');
+                        } catch (error) {
+                            console.log('⚠️  Не удалось добавить колонку symbol:', error.message);
+                        }
                     } else {
                         console.log('✅ Колонка symbol существует');
                     }
@@ -341,19 +358,44 @@ class HybridCollector {
     // Сохранение WebSocket данных
     async saveWebSocketData(exchangeId, symbol, dataType, rawData, processedData = null) {
         try {
-            const query = `
-                INSERT INTO websocket_data (exchange_id, symbol, data_type, raw_data, processed_data, timestamp)
-                VALUES ($1, $2, $3, $4, $5, $6)
-            `;
+            // Проверяем структуру таблицы websocket_data
+            const tableStructure = await this.pool.query(`
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'websocket_data' 
+                ORDER BY ordinal_position
+            `);
             
-            await this.pool.query(query, [
-                exchangeId,
-                symbol,
-                dataType,
-                JSON.stringify(rawData),
-                processedData ? JSON.stringify(processedData) : null,
-                Date.now()
-            ]);
+            const hasSymbolColumn = tableStructure.rows.some(row => row.column_name === 'symbol');
+            const hasPairSymbolColumn = tableStructure.rows.some(row => row.column_name === 'pair_symbol');
+            
+            let query;
+            let params;
+            
+            if (hasSymbolColumn) {
+                // Используем колонку symbol
+                query = `
+                    INSERT INTO websocket_data (exchange_id, symbol, data_type, raw_data, processed_data, timestamp)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                `;
+                params = [exchangeId, symbol, dataType, JSON.stringify(rawData), processedData ? JSON.stringify(processedData) : null, Date.now()];
+            } else if (hasPairSymbolColumn) {
+                // Используем колонку pair_symbol
+                query = `
+                    INSERT INTO websocket_data (exchange_id, pair_symbol, data_type, raw_data, processed_data, timestamp)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                `;
+                params = [exchangeId, symbol, dataType, JSON.stringify(rawData), processedData ? JSON.stringify(processedData) : null, Date.now()];
+            } else {
+                // Fallback - используем только exchange_id и data_type
+                query = `
+                    INSERT INTO websocket_data (exchange_id, data_type, raw_data, processed_data, timestamp)
+                    VALUES ($1, $2, $3, $4, $5)
+                `;
+                params = [exchangeId, dataType, JSON.stringify(rawData), processedData ? JSON.stringify(processedData) : null, Date.now()];
+            }
+            
+            await this.pool.query(query, params);
         } catch (error) {
             console.error('❌ Ошибка сохранения WebSocket данных:', error.message);
         }
